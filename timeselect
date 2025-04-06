@@ -1,0 +1,34 @@
+class TimeSelect(discord.ui.Select):
+    """Dropdown for selecting task duration"""
+
+    def __init__(self, task_name):
+        options = [
+            discord.SelectOption(label=f"{i} minutes", value=str(i))
+            for i in range(15, 181, 15)  # Generate values from 15 to 180 in increments of 15
+        ]
+        super().__init__(placeholder="Select task duration...", options=options)
+        self.task_name = task_name
+
+    async def callback(self, interaction: discord.Interaction):
+        """Handles the selected time option"""
+        time_value = int(self.values[0])  # Get selected time
+        end_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=time_value)
+
+        async with interaction.client.pool.acquire() as conn:
+            try:
+                await conn.execute(
+                    "INSERT INTO user_tasks (user_id, task, duration, end_time, status) VALUES ($1, $2, $3, $4, 'pending')",
+                    interaction.user.id, self.task_name, time_value, end_time
+                )
+                interaction.client.task_queue.put_nowait((end_time, interaction.user.id))  # Add task to queue
+                await interaction.response.send_message(
+                    f"✅ **Task Recorded:** {self.task_name}\n🕒 **Time:** {time_value} minutes",
+                    ephemeral=True
+                )
+                # Mark the task as submitted for this session
+                interaction.client.cogs['VoiceTracking'].task_submitted[interaction.user.id] = True
+            except Exception as e:
+                print(f"❌ Database Error: {e}")
+                await interaction.response.send_message(
+                    "❌ Failed to save your task due to a database issue.", ephemeral=True
+                )
