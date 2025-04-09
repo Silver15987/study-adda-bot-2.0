@@ -1,3 +1,5 @@
 {
-    "timeout_duration": 30
+    "timeout_duration": 30,
+    "points_multiplier": 2,
+    "max_points": 100
 }

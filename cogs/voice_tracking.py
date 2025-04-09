@@ -85,6 +85,7 @@ class TaskModal(discord.ui.Modal, title="Enter Your Task"):
             await interaction.response.send_message("❌ Something went wrong. Try again.", ephemeral=True)
             await interaction.client.cogs['VoiceTracking'].kick_user_from_vc(interaction.user)
 
+# Discord function: only for the user entering the command. 
 class TaskButtonView(discord.ui.View):
     """A button view that allows users to open the TaskModal"""
 
@@ -117,7 +118,7 @@ class TaskCompletionView(discord.ui.View):
             await conn.execute(
                 "UPDATE user_tasks SET status = 'completed' WHERE id = $1",
                 self.task_id
-            )
+            ) # Bug: Will complete all tasks for a specific user, needs task id to be unique
         await interaction.response.edit_message(content="✅ Task marked as completed!", view=None)
         await interaction.followup.send(
             "🎉 Congratulations on completing your task! Do you want to set a new task? Please set it within 5 minutes or you'll be removed from the voice chat.",
@@ -135,7 +136,7 @@ class TaskCompletionView(discord.ui.View):
             await conn.execute(
                 "UPDATE user_tasks SET status = 'left_early' WHERE id = $1",
                 self.task_id
-            )
+            ) #what even is this???
         await interaction.response.edit_message(content="❌ Task not completed. Keep pushing forward! 💪", view=None)
         await interaction.followup.send(
             "How long of an extension do you want?",
@@ -220,7 +221,7 @@ class VoiceTracking(commands.Cog):
         elif before.channel is not None and after.channel is None:  # User left VC early
             async with self.bot.pool.acquire() as conn:
                 task = await conn.fetchrow(
-                    "SELECT * FROM user_tasks WHERE user_id = $1 AND status = 'pending' ORDER BY end_time DESC LIMIT 1",
+                    "SELECT * FROM user_tasks WHERE user_id = $1 AND status = 'pending' ORDER BY end_time DESC LIMIT 1", #Bug: Not checking for task id
                     member.id
                 )
                 if task:
@@ -230,6 +231,7 @@ class VoiceTracking(commands.Cog):
                     )
                     await self.handle_early_exit(member, task['id'])
 
+    #can be enhanced to check for database entries
     @tasks.loop(seconds=5)
     async def task_worker(self):
         """Continuously checks for tasks that need reminders or completion checks"""
@@ -292,7 +294,7 @@ class VoiceTracking(commands.Cog):
         """Marks the task as abandoned"""
         async with self.bot.pool.acquire() as conn:
             await conn.execute(
-                "UPDATE user_tasks SET status = 'abandoned' WHERE id = $1",
+                "UPDATE user_tasks SET status = 'abandoned' WHERE id = $1", 
                 task_id
             )
         if ENABLE_LOGGING:
